@@ -32,36 +32,49 @@ public class PrescriptionService : IPrescriptionService
         if (missingMedicament != null)
             throw new Exception($"Medicament with id {missingMedicament.IdMedicament} does not exist.");
 
-        var patient = await _context.Patients.FindAsync(dto.Patient.IdPatient);
-        if (patient == null)
+        // Transaction
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
         {
-            patient = new Patient
+            var patient = await _context.Patients.FindAsync(dto.Patient.IdPatient);
+            if (patient == null)
             {
-                Id = dto.Patient.IdPatient,
-                FirstName = dto.Patient.FirstName,
-                LastName = dto.Patient.LastName,
-                BirthDate = dto.Patient.BirthDate
+                patient = new Patient
+                {
+                    Id = dto.Patient.IdPatient,
+                    FirstName = dto.Patient.FirstName,
+                    LastName = dto.Patient.LastName,
+                    BirthDate = dto.Patient.BirthDate
+                };
+                _context.Patients.Add(patient);
+            }
+
+            var prescription = new Prescription
+            {
+                DoctorId = dto.DoctorId,
+                Patient = patient,
+                Date = dto.Date,
+                DueDate = dto.DueDate,
+                PrescriptionMedicaments = dto.Medicaments.Select(m => new PrescriptionMedicament
+                {
+                    MedicamentId = m.IdMedicament,
+                    Dose = m.Dose,
+                    Details = m.Description
+                }).ToList()
             };
-            _context.Patients.Add(patient);
+
+            _context.Prescriptions.Add(prescription);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return prescription;
         }
-
-        var prescription = new Prescription
+        catch
         {
-            DoctorId = dto.DoctorId,
-            Patient = patient,
-            Date = dto.Date,
-            DueDate = dto.DueDate,
-            PrescriptionMedicaments = dto.Medicaments.Select(m => new PrescriptionMedicament
-            {
-                MedicamentId = m.IdMedicament,
-                Dose = m.Dose,
-                Details = m.Description
-            }).ToList()
-        };
-
-        _context.Prescriptions.Add(prescription);
-        await _context.SaveChangesAsync();
-
-        return prescription;
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
+
 }
