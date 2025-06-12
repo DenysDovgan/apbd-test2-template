@@ -89,3 +89,39 @@ dotnet run
 - Use `[ApiController]` and `[Route("api/[controller]")]` on `TestsController`.
 
 - Avoid business logic in the controller — delegate to `TestsService`.
+
+## 🔍 Eager Loading with `Include` and `ThenInclude`
+
+When retrieving related data from the database (navigation properties), use `Include` and `ThenInclude` to **eagerly load** the required entities in a single query.
+
+### ✅ Syntax Example
+
+```csharp
+var patient = await _context.Patients
+    .Include(p => p.Prescriptions)                            // Load prescriptions
+        .ThenInclude(pr => pr.Doctor)                         // Load doctor of each prescription
+    .Include(p => p.Prescriptions)                            // Again load prescriptions
+        .ThenInclude(pr => pr.PrescriptionMedicaments)       // Load join table entries
+            .ThenInclude(pm => pm.Medicament)                // Load each medicament in the prescription
+    .FirstOrDefaultAsync(p => p.Id == id);
+```
+
+### 🧠 Notes:
+- `Include()` loads the first level of related data.
+- `ThenInclude()` continues to deeper levels of nested relationships.
+- You can call `Include()` multiple times for different navigation paths.
+- Always use `.FirstOrDefaultAsync()` or `.ToListAsync()` to execute the query.
+
+---
+
+### 💡 When to Use
+
+Use `Include`/`ThenInclude` when you:
+- Need related data for the frontend or API response.
+- Want to avoid **lazy loading** or **multiple separate queries**.
+
+---
+
+### ⚠️ Good Practice
+
+Avoid overusing `Include()` on large object graphs. Load only what you need to reduce memory usage and query time.
